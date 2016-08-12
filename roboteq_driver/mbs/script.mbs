@@ -1,0 +1,201 @@
+Option Explicit
+
+Dim last_mode[2] as Integer
+Dim SCRIPT_VER as integer
+Dim MAX_CHANNELS as integer
+Dim c as integer
+Dim ch as integer
+
+SCRIPT_VER=29
+MAX_CHANNELS=2
+c = 0
+
+
+' Script based on the original file of Roboteq_Driver ROS Package
+' Changes:
+'	* Explicit variable declaration option setup
+'	* General Power Stage configuration according to XDC2230 specifications
+'	* Enable Analog Input 6 instead of Analog Input 1 and Analog Input 2
+'   * Enable MAX_CHANNELS = 2
+'	* Adjust de PID position control for CHANNEL 2 as required for pedal break action
+
+' Mode values are:
+'  -1 stopped
+'  0 speed mode
+'  1 position mode
+' These correspond to the constants in roboteq_msgs/Command. The motors begins in stopped
+' mode, the setup for which is run when last_mode[0] != VAR[1] or last_mode[1] != VAR[2]
+last_mode[0] = -127
+last_mode[1] = -127
+setcommand(_VAR, 1, -1)
+setcommand(_VAR, 2, -1)
+
+' Motor controller configuration. Much of this is particular to Grizzly
+' and can be generalized/parameterized as the need arises. Page numbers
+' are a reference to this document:
+' www.roboteq.com/index.php/docman/motor-controllers-documents-and-files/documentation/user-manual/7-nextgen-controllers-user-manual/file
+
+setconfig(_ECHOF, 1) ' Serial echo off (p195)
+setconfig(_RWD, 110) ' Watchdog timeout, milliseconds (p195)
+setconfig(_BRUN, 0)	 ' Set MicroBasic Auto Start to disable
+setconfig(_ACS, 0)	 ' Desable Analog Center Safety
+'setconfig(_AMOD, 1, 1) ' Analog input 1 enabled in absolute mode
+'setconfig(_AMOD, 2, 1) ' Analog input 2 enabled in absolute mode
+
+
+
+'---------------------- GENERAL POWER STAGE CONFIGURATION ----------------------------------------
+
+setconfig(_PWMF, 180)		'Set PWM Frequency to 18.0 kHz
+setconfig(_BKD, 250)		'Set Brake Activation Delay at 250 ms
+setconfig(_MXMD, 0)			'Set Separate mode operation
+setconfig(_THLD, 1)			'Set Short Circuit Detection Threshold to MEDIUM
+
+'-------------------- UNDERVOLTAGE/OVERVOLTAGE LIMITS (p214) -------------------------------------
+setconfig(_OVL, 300)		'XDC2230 Max Batt Voltage 30 Volts (DATASHEET TABLE 7)
+setconfig(_UVL, 90)			'XDC2230 Min Bat Voltage 9 Volts (DATASHEET TABLE 7)
+
+
+'-------------------------- MOTOR 2 OUTPUT CONFIGURATION ----------------------------------------
+' Current limit (p216)
+setconfig(_ALIM, 2, 150)	'Set Motor 2 Output Amp Limit to 15,0 A	
+setconfig(_ATGA, 2, 0)		'Set the action at Amps Trigger condiction (0 --> no action)
+setconfig(_ATGD, 2, 50)		'Set the Amp Trigger Delay to 50 ms
+setconfig(_ATRIG, 2, 150)	'Set the Amp Trigger Level to 15,0 A
+
+' Max acceleration/deceleration and RPM(p219)
+setconfig(_MAC, 2, 20000)	'Set Max Accel to 2000 RPM/sec
+setconfig(_MDEC, 2, 20000)	'Set Max Deccelto 2000 RPM/sec
+setconfig(_MXRPM, 2, 1000)	'Set the RPM value at Max RPM condiction as 1000 rpm
+
+'----------------------------- MOTOR 2 FEEDBACK SETUP ---------------------------------------------
+'	Adjsust the Analog Channel 6 for position feedback with LINAK Position Sensor
+'	and sensor powered using the controller's 5V output. Motor output 2.
+setconfig(_AINA, 6, 34)		'Analog Input used as motor 2 feedback - AINA 6 (2 + 32)
+setconfig(_AMIN, 6, 250)	'Set Analog Input Min Voltage to 250 mV
+setconfig(_ACTR, 6, 250)	'Set Analog Input Center Voltage to 250 mV
+setconfig(_AMAX, 6, 5000)	'Set Analog Input Max Voltagem to 5000 mV
+setconfig(_APOL, 6, 0)		'Set Conversion Polarity to Direct
+setconfig(_ADB, 6, 2)		'Set Analog Deadband to 2%
+setconfig(_AMINA, 6, 32)	'NO ACTION at Analog Min Value - AMINA 6 (0 + 32)
+setconfig(_AMAXA, 6, 32)	'NO ACTION at Analog Max Value - AMAXA 6 (0 + 32)
+setconfig(_ALIN, 6, 0)		'Set Analog Linearity (0 - linear)
+setconfig(_AMOD, 6, 2)		'Enable Analog Input 6 channel in relative mode
+
+'for ch = 1 andwhile ch <= MAX_CHANNELS evaluate ch++
+	' Encoder, speed config (p208, p221)
+	'setconfig(_EMOD, ch, 50)
+	'setconfig(_EPPR, ch, 1024)
+	'setconfig(_MXRPM, ch, 3500)
+	'setconfig(_CLERD, ch, 0)
+
+	' Current limit (p216)
+'	setconfig(_ALIM, ch, 150)	
+'	setconfig(_ATGA, ch, 2000)
+'	setconfig(_ATGD, ch, 50)
+'	setconfig(_ATRIG, ch, 0)
+
+	' Max acceleration/deceleration (p219)
+'	setconfig(_MAC, ch, 20000)
+'	setconfig(_MDEC, ch, 20000)
+'next
+
+top:
+	for ch = 1 andwhile ch <= MAX_CHANNELS evaluate ch++
+		if last_mode[ch - 1] <> getvalue(_VAR, ch) then
+			last_mode[ch - 1] = getvalue(_VAR, ch)
+
+			' Motor to be stopped (high-Z).
+			if getvalue(_VAR, ch) = -1 then
+				setconfig(_MMOD, ch, 1)
+				setconfig(_KP, ch, 0)
+				setconfig(_KI, ch, 0)
+				setconfig(_KD, ch, 0)
+				setconfig(_ICAP, ch, 0)
+				if ch = 1
+					setcommand(_G, ch, 0)
+				end if
+			end if
+
+			' Motor in velocity-open loop control mode.
+			if getvalue(_VAR, ch) = 0 then
+				setconfig(_MMOD, ch, 0)
+				'setconfig(_KP, ch, 20)
+				'setconfig(_KI, ch, 40)
+				'setconfig(_KD, ch, 10)
+				'setconfig(_ICAP, ch, 100)
+			end if
+			
+			' Motor in velocity-closed loop control mode.
+			if getvalue(_VAR, ch) = 1 then
+				setconfig(_MMOD, ch, 1)
+				setconfig(_KP, ch, 0)
+				setconfig(_KI, ch, 0)
+				setconfig(_KD, ch, 0)
+				setconfig(_ICAP, ch, 0)
+				setcommand(_G, ch, 0)
+			end if
+			
+			' Motor in position-linear control mode.
+			if getvalue(_VAR, ch) = 2 then
+				if ch = 1
+				
+				elseif ch = 2	
+					setconfig(_MMOD, ch, 4)
+					setconfig(_KP, ch, 50)
+					setconfig(_KI, ch, 0)
+					setconfig(_KD, ch, 0)
+					setconfig(_ICAP, ch, 100)
+				end if
+			end if
+			
+			' Motor in position-angular control mode.
+			if getvalue(_VAR, ch) = 3 then
+				setconfig(_MMOD, ch, 1)
+				setconfig(_KP, ch, 0)
+				setconfig(_KI, ch, 0)
+				setconfig(_KD, ch, 0)
+				setconfig(_ICAP, ch, 0)
+				if ch = 1
+					setcommand(_G, ch, 0)
+				end if
+			end if
+		end if
+		
+		' Send feedback for this channel at 25Hz.
+		GoSub PrintFeedback
+	next
+
+	' Send status messages for the controller at 5Hz.
+	c++
+	if c = 5 then
+		GoSub PrintStatus
+		c = 0
+	end if
+
+	wait(19)
+	goto top
+
+PrintFeedback:
+	print("&f:", ch)
+	print(":", getvalue(_MOTAMPS, ch))
+	print(":", getvalue(_MOTCMD, ch))
+	print(":", getvalue(_MOTPWR, ch))
+	print(":", getvalue(_ABSPEED, ch))
+	print(":", getvalue(_ABCNTR, ch))
+	print(":", getvalue(_VOLTS, 2))
+	print(":", getvalue(_BATAMPS, ch))
+	print(":", getvalue(_ANAIN, ch))
+	print(":", getvalue(_TEMP, ch+1))
+	print("\r")
+	Return
+	
+PrintStatus:
+	print("&s:", SCRIPT_VER)
+	print(":", getvalue(_FLTFLAG))
+	print(":", getvalue(_STFLAG))
+	print(":", getvalue(_VOLTS, 1))
+	print(":", getvalue(_VOLTS, 3))
+	print(":", getvalue(_TEMP, 1))
+	print("\r")
+	Return
