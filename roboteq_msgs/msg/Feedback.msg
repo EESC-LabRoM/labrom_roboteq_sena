@@ -1,6 +1,9 @@
 # 50Hz feedback message for controls purposes
 Header header
 
+#Channel ID
+uint8 channel_number
+
 # Current flowing in the motors (A)
 float32 motor_current
 

@@ -46,6 +46,7 @@ class Controller {
 private :
   const char *port_;
   int baud_;
+  int script_ver_;
   bool connected_;
   bool receiving_script_messages_;
   std::string version_;
@@ -109,7 +110,7 @@ protected:
   EOMSend send, sendVerify;
 
 public :
-  Controller (const char *port, int baud);
+  Controller (const char *port, int baud, int script_ver);
   ~Controller();
 
   void addChannel(Channel* channel);

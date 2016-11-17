@@ -35,13 +35,15 @@ int main(int argc, char **argv) {
 
   std::string port = "/dev/ttyUSB0";
   int32_t baud = 115200;
+  int script_ver;
   nh.param<std::string>("port", port, port);
   nh.param<int32_t>("baud", baud, baud);
+  nh.param<int>("script_ver", script_ver, script_ver);
  
   std::stringstream ss;
     
   // Interface to motor controller.
-  roboteq::Controller controller(port.c_str(), baud);
+  roboteq::Controller controller(port.c_str(), baud, script_ver);
  
   // Setup channels.
   if (nh.hasParam("channels")) {

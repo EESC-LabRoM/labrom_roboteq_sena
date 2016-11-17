@@ -1,4 +1,3 @@
-
 # Control whether the setpoint represents a velocity or position command.
 # Velocity is the default, but position may be used for fine-grained movements,
 # or active braking on an incline. Stopped is high-z (coasting).

@@ -40,15 +40,15 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Link to generated source from Microbasic script file.
 extern const char* script_lines[];
-extern const int script_ver = 29;
+//extern const int script_ver = 30;
 
 namespace roboteq {
 
 const std::string eol("\r");
 const size_t max_line_length(128);
 
-Controller::Controller(const char *port, int baud)
-  : nh_("~"), port_(port), baud_(baud), connected_(false), receiving_script_messages_(false),
+Controller::Controller(const char *port, int baud, int script_ver)
+  : nh_("~"), port_(port), baud_(baud), connected_(false), receiving_script_messages_(false), script_ver_(script_ver),
     version_(""), start_script_attempts_(0), serial_(NULL),
     command("!", this), query("?", this), param("^", this)
 {
@@ -157,11 +157,11 @@ void Controller::processStatus(std::string str) {
   try {
     int reported_script_ver = boost::lexical_cast<int>(fields[1]);
     static int wrong_script_version_count = 0;
-    if (reported_script_ver == script_ver) {
+    if (reported_script_ver == script_ver_) {
       wrong_script_version_count = 0;
     } else {
       if (++wrong_script_version_count > 5) {
-        ROS_WARN_STREAM("Script version mismatch. Expecting " << script_ver <<
+        ROS_WARN_STREAM("Script version mismatch. Expecting " << script_ver_ <<
             " but controller consistently reports " << reported_script_ver << ". " <<
             ". Now attempting download.");
         downloadScript();

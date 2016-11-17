@@ -6,7 +6,7 @@ Dim MAX_CHANNELS as integer
 Dim c as integer
 Dim ch as integer
 
-SCRIPT_VER=29
+SCRIPT_VER=31
 MAX_CHANNELS=2
 c = 0
 
@@ -18,6 +18,7 @@ c = 0
 '	* Enable Analog Input 6 instead of Analog Input 1 and Analog Input 2
 '   * Enable MAX_CHANNELS = 2
 '	* Adjust de PID position control for CHANNEL 2 as required for pedal break action
+'	* Enable Digital Output 2 to safe protection against power MOSFETs failure
 
 ' Mode values are:
 '  -1 stopped
@@ -37,7 +38,7 @@ setcommand(_VAR, 2, -1)
 
 setconfig(_ECHOF, 1) ' Serial echo off (p195)
 setconfig(_RWD, 110) ' Watchdog timeout, milliseconds (p195)
-setconfig(_BRUN, 0)	 ' Set MicroBasic Auto Start to disable
+'setconfig(_BRUN, 0)	 ' Set MicroBasic Auto Start to disable
 setconfig(_ACS, 0)	 ' Desable Analog Center Safety
 'setconfig(_AMOD, 1, 1) ' Analog input 1 enabled in absolute mode
 'setconfig(_AMOD, 2, 1) ' Analog input 2 enabled in absolute mode
@@ -55,6 +56,41 @@ setconfig(_THLD, 1)			'Set Short Circuit Detection Threshold to MEDIUM
 setconfig(_OVL, 300)		'XDC2230 Max Batt Voltage 30 Volts (DATASHEET TABLE 7)
 setconfig(_UVL, 90)			'XDC2230 Min Bat Voltage 9 Volts (DATASHEET TABLE 7)
 
+'---------------------- POWER MOSFETS FAILURE PROTECTION -----------------------------------------
+setconfig(_DOA, 1, 48)		'Disable Digital Output #1 Action
+setconfig(_DOA, 2, 54)		'Set the Digital Output #2 Action as function of "no MOSFET failure" (54)
+setconfig(_DOL, 0)			'Set the Digital Output #2 Active Level as High (ON state)
+
+'-------------------------- MOTOR 1 OUTPUT CONFIGURATION ----------------------------------------
+' Current limit (p216)
+setconfig(_ALIM, 1, 150)	'Set Motor 1 Output Amp Limit to 15,0 A	
+setconfig(_ATGA, 1, 0)		'Set the action at Amps Trigger condiction (0 --> no action)
+setconfig(_ATGD, 1, 50)		'Set the Amp Trigger Delay to 50 ms
+setconfig(_ATRIG, 1, 150)	'Set the Amp Trigger Level to 15,0 A
+setconfig(_MXPF, 1, 100)	'Set the Motor Max Power Forward to 100%
+setconfig(_MXPR, 1, 100)	'Set the Motor Max Power Reverse to 100%
+
+' Max acceleration/deceleration and RPM(p219)
+setconfig(_MAC, 1, 2000)	'Set Max Accel to 200 RPM/sec
+setconfig(_MDEC, 1, 1500)	'Set Max Deccelto 150 RPM/sec
+setconfig(_MXRPM, 1, 120)	'Set the RPM value at Max RPM condiction as 120 RPM
+
+' CLosed Loop Parameters
+setconfig(_MVEL, 1, 120)	'Set the motor speed at position mode to 120 RPM
+setconfig(_MXTRN, 1, 3)		'Set the Turns between Limits to 3 turns
+setconfig(_CLERD, 1, 3)		'Set Closed Loop Error Detection to be set with feedback command
+							'greater than 500 for more than 1 sec.
+
+'----------------------------- MOTOR 1 FEEDBACK SETUP ---------------------------------------------
+'	Adjsust the Encoder Channel 1 for count position feedback with 500 pulses optical encoder. Motor output 1.
+setconfig(_EPPR, 1, 500)	'Set the pulses per revolution of the Encoder 1
+setconfig(_ELL, 1, -4050)	'Set the Encoder Low Count Limit (1.5 revolution from steering certer position)
+setconfig(_EHL, 1, 4050)	'Set the Encoder High Count Limit (1.5 revolution from steering certer position)
+setconfig(_EHOME, 1, 0)		'Set the Encoder Counter Load at Home Position as Zero
+setconfig(_ELLA, 1, 16)		'Set the Encoder Low Limit Action as NO ACTION
+setconfig(_EHLA, 1, 16)		'Set the Encoder High Limit Action as NO ACTION
+setconfig(_EMOD, 1, 18)		'Set the Encoder as Feedback for Motor Channel 1
+
 
 '-------------------------- MOTOR 2 OUTPUT CONFIGURATION ----------------------------------------
 ' Current limit (p216)
@@ -67,6 +103,11 @@ setconfig(_ATRIG, 2, 150)	'Set the Amp Trigger Level to 15,0 A
 setconfig(_MAC, 2, 20000)	'Set Max Accel to 2000 RPM/sec
 setconfig(_MDEC, 2, 20000)	'Set Max Deccelto 2000 RPM/sec
 setconfig(_MXRPM, 2, 1000)	'Set the RPM value at Max RPM condiction as 1000 rpm
+
+' CLosed Loop Parameters
+setconfig(_CLERD, 2, 3)		'Set Closed Loop Error Detection to be set with feedback command
+							'greater than 500 for more than 1 sec.
+
 
 '----------------------------- MOTOR 2 FEEDBACK SETUP ---------------------------------------------
 '	Adjsust the Analog Channel 6 for position feedback with LINAK Position Sensor
@@ -112,18 +153,17 @@ top:
 				setconfig(_KI, ch, 0)
 				setconfig(_KD, ch, 0)
 				setconfig(_ICAP, ch, 0)
-				if ch = 1
-					setcommand(_G, ch, 0)
-				end if
+				setcommand(_G, ch, 0)
+				'end if
 			end if
 
 			' Motor in velocity-open loop control mode.
 			if getvalue(_VAR, ch) = 0 then
 				setconfig(_MMOD, ch, 0)
-				'setconfig(_KP, ch, 20)
-				'setconfig(_KI, ch, 40)
-				'setconfig(_KD, ch, 10)
-				'setconfig(_ICAP, ch, 100)
+				setconfig(_KP, ch, 0)
+				setconfig(_KI, ch, 0)
+				setconfig(_KD, ch, 0)
+				setconfig(_ICAP, ch, 0)
 			end if
 			
 			' Motor in velocity-closed loop control mode.
@@ -142,7 +182,7 @@ top:
 				
 				elseif ch = 2	
 					setconfig(_MMOD, ch, 4)
-					setconfig(_KP, ch, 50)
+					setconfig(_KP, ch, 100)
 					setconfig(_KI, ch, 0)
 					setconfig(_KD, ch, 0)
 					setconfig(_ICAP, ch, 100)
@@ -151,13 +191,14 @@ top:
 			
 			' Motor in position-angular control mode.
 			if getvalue(_VAR, ch) = 3 then
-				setconfig(_MMOD, ch, 1)
-				setconfig(_KP, ch, 0)
-				setconfig(_KI, ch, 0)
-				setconfig(_KD, ch, 0)
-				setconfig(_ICAP, ch, 0)
+				
 				if ch = 1
-					setcommand(_G, ch, 0)
+					setconfig(_MMOD, ch, 3)
+					setconfig(_KP, ch, 100)
+					setconfig(_KI, ch, 0)
+					setconfig(_KD, ch, 0)
+					setconfig(_ICAP, ch, 100)
+					'setcommand(_G, ch, 0)
 				end if
 			end if
 		end if
