@@ -137,7 +137,7 @@ void Channel::feedbackCallback(std::vector<std::string> fields)
   {
     msg.channel_number = boost::lexical_cast<int>(fields[1]);
     msg.motor_current = boost::lexical_cast<float>(fields[2]) / 10;
-    msg.commanded_velocity = from_rpm(boost::lexical_cast<double>(fields[3]));
+    msg.motor_command = boost::lexical_cast<double>(fields[3]);
     msg.motor_power = boost::lexical_cast<float>(fields[4]) / 1000.0;
     msg.measured_velocity = from_rpm(boost::lexical_cast<double>(fields[5]));
     msg.measured_position = from_encoder_ticks(boost::lexical_cast<double>(fields[6]));

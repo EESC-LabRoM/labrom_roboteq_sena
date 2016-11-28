@@ -12,7 +12,7 @@ float32 motor_power
 
 # Commanded and measured speed of the motors (rad/s)
 # Position is reported in rads, and wraps around +-6M
-float32 commanded_velocity
+float32 motor_command
 float32 measured_velocity
 float32 measured_position
 
