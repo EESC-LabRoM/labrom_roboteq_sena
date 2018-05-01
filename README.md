@@ -1,3 +1,6 @@
+# [This repo is going to be removed]
+new address: https://bitbucket.org/grupomecatronica/labrom_roboteq_sena/src
+
 roboteq
 =======
 
